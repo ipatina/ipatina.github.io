@@ -7,7 +7,7 @@ permalink: /about/
 <img class="col one right" src="/img/prof_pic.jpg">
 
 <br/>
-My name is Alina Ipatina. I'm Java developer based out of Samara, Russia. currently work at EPAM as a junior java developer, and engage in miscellaneous development on my own time.
+My name is Alina Ipatina. I'm Java developer based out of Samara, Russia. Currently work at EPAM as a junior java developer, and engage in miscellaneous development on my own time.
 
 
 <br/>
