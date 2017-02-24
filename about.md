@@ -7,7 +7,7 @@ permalink: /about/
 <img class="col one right" src="/img/prof_pic.jpg">
 
 <br/>
-I'm Ipatina Alina. I love programming, linux and other computer-related things.
+My name is Alina Ipatina. I'm Java developer based out of Samara, Russia. currently work at EPAM as a junior java developer, and engage in miscellaneous development on my own time.
 
 
 <br/>
