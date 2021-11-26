@@ -1,15 +1,151 @@
----
-layout: default
----
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ДКА</title>
+    <script
+            src="https://state-machine-cat.js.org/state-machine-cat-inpage.min.js"
+            defer>
+    </script>
+</head>
+<body>
+<h3>Введите грамматику:</h3>
+<label>Нетерминалы =</label>
+<input type="text" value="K,L,M,N" id="nonterm" size="20">
+<br>
+<label>Терминалы =</label>
+<input type="text" value="a,b,+,-,⊥" id="term" size="20">
+<br>
+<label>Правила =</label>
+<input type="text" value="K->aL|bM;L->-N|-M;M->+N;N->aL|bM|⊥" id="rules" size="40">
+<br>
+<label>Начальный символ =</label>
+<input type="text" value="K" id="start" size="20">
+<br>
+<button type="button" onclick="create_dka()">Построить</button>
+<br>
+<script type="text/javascript">
+    function groupBy(arr, criteria) {
+        return arr.reduce(function (acc, currentValue) {
+            if (!acc[currentValue[criteria]]) {
+                acc[currentValue[criteria]] = [];
+            }
+            acc[currentValue[criteria]].push(currentValue);
+            return acc;
+        }, {});
+    }
 
-<ul class="post-list">
-    {% for post in paginator.posts %}
-      <li>
-        <h2><a class="post-title" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></h2>
-        <p class="post-meta">{{ post.date | date: '%B %-d, %Y — %H:%M' }}</p>
-        <p>{{ post.description }}</p>
-        <br/>
-        <hr/>
-      </li>
-    {% endfor %}
-</ul>
+    function create_dka() {
+        // получаем строку введенных нетерминалов
+        const nonTerminalStr = document.getElementById('nonterm').value;
+        // получаем строку введенных терминалов
+        const terminalStr = document.getElementById('term').value;
+        // получаем строку введенных правил
+        const ruleStr = document.getElementById('rules').value;
+        // получаем строку введенного начального состояния
+        const start = document.getElementById('start').value;
+
+        // подготавливаем структуру данных для конечного автомата
+        const NKA = {
+            "states": [{
+                "name": "start",
+                "type": "initial"
+            }, {
+                "name": "final",
+                "type": "final"
+            }],
+            "transitions": [{
+                "from": "start",
+                "to": start
+            }]
+        };
+
+        // заполняем структуру данных для НКА состояниями из нетерминалов
+        const nonTerminalArray = nonTerminalStr.split(",")
+        nonTerminalArray.forEach(nonTerminal => NKA.states.push({
+            "name": nonTerminal.trim(),
+            "type": "regular"
+        }))
+
+        // создаем структуру данных для детерминированного конечного автомата
+        const DKA = JSON.parse(JSON.stringify(NKA));
+
+        // добавляем правила грамматики в структуру переходов между состояниями
+        ruleStr.split(";")
+            .map(rule => rule.split("->"))
+            .forEach(rule => {
+                rule[1].split("|").forEach(ruleItem => {
+                    if (ruleItem.length < 2) {
+                        NKA.transitions.push({
+                            "from": rule[0],
+                            "to": "final",
+                            "label": ruleItem
+                        });
+                    } else {
+                        NKA.transitions.push({
+                            "from": rule[0],
+                            "to": ruleItem.charAt(1),
+                            "label": ruleItem.charAt(0)
+                        });
+                    }
+                })
+            })
+
+        const newNonTerminalArray = [];
+
+        // для ДКА добавляем новые состояния автомата, полученные группированием одинаковых терминалов и состояний
+        terminalStr.split(",").forEach(terminal => {
+            const result = NKA.transitions.filter(transition => transition.label === terminal);
+
+            if (result.length > 1) {
+                const groupedByFrom = groupBy(result, "from");
+                const groupedByFromValue = Object.values(groupedByFrom)[0];
+
+                if (groupedByFromValue.length > 1) {
+                    const sorted = nonTerminalArray.sort((a, b) => a.localeCompare(b));
+                    const nextSymbol = String.fromCharCode(sorted[sorted.length - 1].charCodeAt(0) + 1);
+                    newNonTerminalArray.push({
+                        "newFrom": nextSymbol,
+                        "from": groupedByFromValue[0].from,
+                        "label": terminal,
+                        "newTo": [groupedByFromValue[0].to, groupedByFromValue[1].to]
+                    });
+                }
+            }
+        })
+
+        // определяем переходы для добавленных на предыдущем шаге состояний
+        newNonTerminalArray.forEach(nonTerminal => {
+            NKA.transitions
+                .filter(transition => transition.from !== nonTerminal.from & transition.from.length === 1)
+                .forEach(transition => DKA.transitions.push(transition));
+
+            DKA.states.push({
+                "name": nonTerminal.newFrom,
+                "type": "regular"
+            });
+            DKA.transitions.push({
+                "from": nonTerminal.from,
+                "to": nonTerminal.newFrom,
+                "label": nonTerminal.label
+            });
+
+            nonTerminal.newTo.forEach(to => {
+                NKA.transitions
+                    .filter(transition => transition.from === to)
+                    .forEach(transition => DKA.transitions.push({
+                        "from": nonTerminal.newFrom,
+                        "to": transition.to,
+                        "label": transition.label
+                    }))
+            })
+        })
+
+        console.log(DKA)
+        console.log(JSON.stringify(DKA))
+    }
+</script>
+<script type="text/x-smcat-json" data-direction="left-right">
+    {"states":[{"name":"start","type":"initial"},{"name":"final","type":"final"},{"name":"K","type":"regular"},{"name":"L","type":"regular"},{"name":"M","type":"regular"},{"name":"N","type":"regular"},{"name":"O","type":"regular"}],"transitions":[{"from":"start","to":"K"},{"from":"K","to":"L","label":"a"},{"from":"K","to":"M","label":"b"},{"from":"M","to":"N","label":"+"},{"from":"N","to":"L","label":"a"},{"from":"N","to":"M","label":"b"},{"from":"N","to":"final","label":"⊥"},{"from":"L","to":"O","label":"-"},{"from":"O","to":"L","label":"a"},{"from":"O","to":"M","label":"b"},{"from":"O","to":"final","label":"⊥"},{"from":"O","to":"N","label":"+"}]}
+</script>
+</body>
+</html>
