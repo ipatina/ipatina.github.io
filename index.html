@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ДКА</title>
+    <title>Минимизация КА</title>
     <script
             src="https://state-machine-cat.js.org/state-machine-cat-inpage.min.js"
             defer>
@@ -10,18 +10,21 @@
 <body>
 <h3>Введите грамматику:</h3>
 <label>Нетерминалы =</label>
-<input type="text" value="K,L,M,N" id="nonterm" size="20">
+<input type="text" value="A,B,C,D,E,F,G,H,I,J" id="nonterm" size="20">
 <br>
 <label>Терминалы =</label>
-<input type="text" value="a,b,+,-,⊥" id="term" size="20">
+<input type="text" value="a,b,c,d,~,&,⊥" id="term" size="20">
 <br>
 <label>Правила =</label>
-<input type="text" value="K->aL|bM;L->-N|-M;M->+N;N->aL|bM|⊥" id="rules" size="40">
+<input type="text" value="A->cC;C->aE|cF|bG;B->dC;D->dC;E->~B|⊥I;F->&C|⊥I;G->~D|⊥I;H->bE|aI;J->aG|bI" id="rules" size="40">
 <br>
 <label>Начальный символ =</label>
-<input type="text" value="K" id="start" size="20">
+<input type="text" value="A" id="start" size="20">
 <br>
-<button type="button" onclick="create_dka()">Построить</button>
+<br>
+<button type="button" onclick="create_dka()">Устранить недостижимые состояния</button>
+<button type="button" onclick="create_dka()">Минимизировать конечный автомат</button>
+<br>
 <br>
 <script type="text/javascript">
     function groupBy(arr, criteria) {
@@ -35,13 +38,13 @@
     }
 
     function create_dka() {
-        // получаем строку введенных нетерминалов
+        // получаем строку введенных нетерминалов грамматики
         const nonTerminalStr = document.getElementById('nonterm').value;
-        // получаем строку введенных терминалов
+        // получаем строку введенных терминалов грамматики
         const terminalStr = document.getElementById('term').value;
-        // получаем строку введенных правил
+        // получаем строку введенных правил грамматики
         const ruleStr = document.getElementById('rules').value;
-        // получаем строку введенного начального состояния
+        // получаем строку введенного начального символа грамматики
         const start = document.getElementById('start').value;
 
         // подготавливаем структуру данных для конечного автомата
@@ -59,15 +62,16 @@
             }]
         };
 
+        // создаем структуру данных для детерминированного конечного автомата
+        const minKA_1 = JSON.parse(JSON.stringify(NKA));
+        const minKA_2 = JSON.parse(JSON.stringify(NKA));
+
         // заполняем структуру данных для НКА состояниями из нетерминалов
         const nonTerminalArray = nonTerminalStr.split(",")
         nonTerminalArray.forEach(nonTerminal => NKA.states.push({
             "name": nonTerminal.trim(),
             "type": "regular"
         }))
-
-        // создаем структуру данных для детерминированного конечного автомата
-        const DKA = JSON.parse(JSON.stringify(NKA));
 
         // добавляем правила грамматики в структуру переходов между состояниями
         ruleStr.split(";")
@@ -90,62 +94,41 @@
                 })
             })
 
-        const newNonTerminalArray = [];
+        // console.log(NKA)
+        // console.log(JSON.stringify(NKA))
 
-        // для ДКА добавляем новые состояния автомата, полученные группированием одинаковых терминалов и состояний
-        terminalStr.split(",").forEach(terminal => {
-            const result = NKA.transitions.filter(transition => transition.label === terminal);
-
-            if (result.length > 1) {
-                const groupedByFrom = groupBy(result, "from");
-                const groupedByFromValue = Object.values(groupedByFrom)[0];
-
-                if (groupedByFromValue.length > 1) {
-                    const sorted = nonTerminalArray.sort((a, b) => a.localeCompare(b));
-                    const nextSymbol = String.fromCharCode(sorted[sorted.length - 1].charCodeAt(0) + 1);
-                    newNonTerminalArray.push({
-                        "newFrom": nextSymbol,
-                        "from": groupedByFromValue[0].from,
-                        "label": terminal,
-                        "newTo": [groupedByFromValue[0].to, groupedByFromValue[1].to]
-                    });
-                }
+        const dostState = []
+        NKA.transitions.forEach(trans => {
+            if (!dostState.includes(trans.to)) {
+                dostState.push(trans.to)
             }
         })
 
-        // определяем переходы для добавленных на предыдущем шаге состояний
-        newNonTerminalArray.forEach(nonTerminal => {
-            NKA.transitions
-                .filter(transition => transition.from !== nonTerminal.from & transition.from.length === 1)
-                .forEach(transition => DKA.transitions.push(transition));
-
-            DKA.states.push({
-                "name": nonTerminal.newFrom,
-                "type": "regular"
-            });
-            DKA.transitions.push({
-                "from": nonTerminal.from,
-                "to": nonTerminal.newFrom,
-                "label": nonTerminal.label
-            });
-
-            nonTerminal.newTo.forEach(to => {
-                NKA.transitions
-                    .filter(transition => transition.from === to)
-                    .forEach(transition => DKA.transitions.push({
-                        "from": nonTerminal.newFrom,
-                        "to": transition.to,
-                        "label": transition.label
-                    }))
-            })
+        NKA.states.forEach(state => {
+            if (dostState.includes(state.name)) {
+                minKA_1.states.push(state)
+            }
         })
 
-        console.log(DKA)
-        console.log(JSON.stringify(DKA))
+        NKA.transitions.forEach(trans => {
+            if (trans.from !== "start" && dostState.includes(trans.from)) {
+                minKA_1.transitions.push(trans)
+            }
+        })
+
+        console.log(minKA_1)
+        console.log(JSON.stringify(minKA_1))
+
+        // добавляем отрисовку графа ДКА
+        // const sc = document.createElement("script");
+        // const txt = document.createTextNode(JSON.stringify(DKA));
+        // sc.setAttribute("type", "text/x-smcat-json");
+        // sc.appendChild(txt);
+        // document.body.appendChild(sc);
     }
 </script>
 <script type="text/x-smcat-json" data-direction="left-right">
-    {"states":[{"name":"start","type":"initial"},{"name":"final","type":"final"},{"name":"K","type":"regular"},{"name":"L","type":"regular"},{"name":"M","type":"regular"},{"name":"N","type":"regular"},{"name":"O","type":"regular"}],"transitions":[{"from":"start","to":"K"},{"from":"K","to":"L","label":"a"},{"from":"K","to":"M","label":"b"},{"from":"M","to":"N","label":"+"},{"from":"N","to":"L","label":"a"},{"from":"N","to":"M","label":"b"},{"from":"N","to":"final","label":"⊥"},{"from":"L","to":"O","label":"-"},{"from":"O","to":"L","label":"a"},{"from":"O","to":"M","label":"b"},{"from":"O","to":"final","label":"⊥"},{"from":"O","to":"N","label":"+"}]}
+    {"states":[{"name":"start","type":"initial"},{"name":"A","type":"regular"},{"name":"B","type":"regular"},{"name":"C","type":"regular"},{"name":"D","type":"regular"},{"name":"E","type":"regular"},{"name":"F","type":"regular"},{"name":"G","type":"regular"},{"name":"I","type":"regular"}],"transitions":[{"from":"start","to":"A"},{"from":"E","to":"B","label":"~"},{"from":"A","to":"C","label":"c"},{"from":"B","to":"C","label":"d"},{"from":"D","to":"C","label":"d"},{"from":"F","to":"C","label":"&amp;"},{"from":"G","to":"D","label":"~"},{"from":"C","to":"E","label":"a"},{"from":"C","to":"F","label":"c"},{"from":"C","to":"G","label":"b"},{"from":"E","to":"I","label":"⊥"},{"from":"F","to":"I","label":"⊥"},{"from":"G","to":"I","label":"⊥"}]}
 </script>
 </body>
 </html>
