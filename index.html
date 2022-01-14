@@ -16,7 +16,8 @@
 <input type="text" value="a,b,c,d,~,&,⊥" id="term" size="20">
 <br>
 <label>Правила =</label>
-<input type="text" value="A->cC;C->aE|cF|bG;B->dC;D->dC;E->~B|⊥I;F->&C|⊥I;G->~D|⊥I;H->bE|aI;J->aG|bI" id="rules" size="40">
+<input type="text" value="A->cC;C->aE|cF|bG;B->dC;D->dC;E->~B|⊥I;F->&C|⊥I;G->~D|⊥I;H->bE|aI;J->aG|bI" id="rules"
+       size="40">
 <br>
 <label>Начальный символ =</label>
 <input type="text" value="A" id="start" size="20">
@@ -52,9 +53,6 @@
             "states": [{
                 "name": "start",
                 "type": "initial"
-            }, {
-                "name": "final",
-                "type": "final"
             }],
             "transitions": [{
                 "from": "start",
@@ -116,8 +114,87 @@
             }
         })
 
-        console.log(minKA_1)
-        console.log(JSON.stringify(minKA_1))
+        const sorted = nonTerminalArray.sort((a, b) => a.localeCompare(b));
+        let lastLetter = String.fromCharCode(sorted[sorted.length - 1].charCodeAt(0) + 1);
+        const newNonTerms = [];
+
+        const groupedByFrom = groupBy(minKA_1.transitions, "to");
+        const groupedByFromValues = Object.values(groupedByFrom).filter(x => x.length > 1);
+        groupedByFromValues.forEach(grp => {
+            const groupedByLabel = groupBy(grp, "label");
+            const groupedByLabelValues = Object.values(groupedByLabel).filter(x => x.length > 1);
+            const allFrom = groupedByLabelValues[0].map(x => x.from);
+            newNonTerms.push({
+                "from": allFrom,
+                "newFrom": lastLetter,
+                "to": groupedByLabelValues[0][0].to,
+                "label": groupedByLabelValues[0][0].label
+            });
+            lastLetter = String.fromCharCode(lastLetter.charCodeAt(0) + 1);
+        });
+
+        const newTransitions = [];
+        const newStates = minKA_1.states.filter(x => x.name === start);
+
+        newNonTerms.forEach(x => {
+            newStates.push({
+                "name": x.newFrom,
+                "type": "regular"
+            });
+            newStates.push({
+                "name": x.to,
+                "type": "regular"
+            });
+        });
+
+        newNonTerms.forEach(x => {
+            newTransitions.push({
+                "from": x.newFrom,
+                "to": x.to,
+                "label": x.label
+            });
+        })
+
+        const updated = minKA_1.transitions.map(trans => {
+            newNonTerms.forEach(newNonTerm => {
+                if (newNonTerm.from.includes(trans.to)) {
+                    trans.to = newNonTerm.newFrom
+                }
+            })
+            return trans;
+        });
+
+        updated.forEach(x => {
+            let notFound = true;
+            newNonTerms.forEach(newNonTerm => {
+                if (newNonTerm.from.includes(x.from)) {
+                    const existing = newTransitions.filter(newTr => newTr.from === newNonTerm.newFrom && newTr.to === x.to)
+                    if (existing.length === 0) {
+                        newTransitions.push({
+                            "from": newNonTerm.newFrom,
+                            "to": x.to,
+                            "label": x.label
+                        });
+                    }
+                    notFound = false;
+                }
+            })
+            if (notFound) {
+                const existing = newTransitions.filter(newTr => newTr.from === x.from && newTr.to === x.to)
+                if (existing.length > 0) {
+                    existing[0].label = existing[0].label + "," + x.label;
+                } else {
+                    newTransitions.push(x);
+                }
+            }
+        })
+
+        minKA_2.states = minKA_2.states.concat(newStates)
+        minKA_2.transitions = newTransitions
+
+        console.log(newTransitions);
+        console.log(newStates);
+        console.log(JSON.stringify(minKA_2))
 
         // добавляем отрисовку графа ДКА
         // const sc = document.createElement("script");
@@ -128,7 +205,7 @@
     }
 </script>
 <script type="text/x-smcat-json" data-direction="left-right">
-    {"states":[{"name":"start","type":"initial"},{"name":"A","type":"regular"},{"name":"B","type":"regular"},{"name":"C","type":"regular"},{"name":"D","type":"regular"},{"name":"E","type":"regular"},{"name":"F","type":"regular"},{"name":"G","type":"regular"},{"name":"I","type":"regular"}],"transitions":[{"from":"start","to":"A"},{"from":"E","to":"B","label":"~"},{"from":"A","to":"C","label":"c"},{"from":"B","to":"C","label":"d"},{"from":"D","to":"C","label":"d"},{"from":"F","to":"C","label":"&amp;"},{"from":"G","to":"D","label":"~"},{"from":"C","to":"E","label":"a"},{"from":"C","to":"F","label":"c"},{"from":"C","to":"G","label":"b"},{"from":"E","to":"I","label":"⊥"},{"from":"F","to":"I","label":"⊥"},{"from":"G","to":"I","label":"⊥"}]}
+{"states":[{"name":"start","type":"initial"},{"name":"A","type":"regular"},{"name":"K","type":"regular"},{"name":"C","type":"regular"},{"name":"L","type":"regular"},{"name":"I","type":"regular"}],"transitions":[{"from":"K","to":"C","label":"d"},{"from":"start","to":"A"},{"from":"A","to":"C","label":"c"},{"from":"C","to":"L","label":"a,c,b"},{"from":"L","to":"K","label":"~"},{"from":"L","to":"C","label":"&amp;"},{"from":"L","to":"I","label":"⊥"}]}
 </script>
 </body>
 </html>
