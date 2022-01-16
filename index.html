@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Минимизация КА</title>
+    <title>Эквивалентные преобразования КС-грамматик</title>
     <script
             src="https://state-machine-cat.js.org/state-machine-cat-inpage.min.js"
             defer>
@@ -10,22 +10,19 @@
 <body>
 <h3>Введите грамматику:</h3>
 <label>Нетерминалы =</label>
-<input type="text" value="A,B,C,D,E,F,G,H,I,J" id="nonterm" size="20">
+<input type="text" value="S,R,T,X,Y" id="nonterm" size="20">
 <br>
 <label>Терминалы =</label>
-<input type="text" value="a,b,c,d,~,&,⊥" id="term" size="20">
+<input type="text" value="a,b,p,g,y" id="term" size="20">
 <br>
 <label>Правила =</label>
-<input type="text" value="A->cC;C->aE|cF|bG;B->dC;D->dC;E->~B|⊥I;F->&C|⊥I;G->~D|⊥I;H->bE|aI;J->aG|bI" id="rules"
+<input type="text" value="S->R|T;R->pX|paR|paT|ε;T->Tg|g;X->aXb;Y->aYa|y" id="rules"
        size="40">
 <br>
 <label>Начальный символ =</label>
-<input type="text" value="A" id="start" size="20">
+<input type="text" value="S" id="start" size="20">
 <br>
-<br>
-<button type="button" onclick="create_dka()">Устранить недостижимые состояния</button>
-<button type="button" onclick="create_dka()">Минимизировать конечный автомат</button>
-<br>
+<button type="button" onclick="minimize()">Преобразовать</button>
 <br>
 <script type="text/javascript">
     function groupBy(arr, criteria) {
@@ -38,7 +35,7 @@
         }, {});
     }
 
-    function create_dka() {
+    function minimize() {
         // получаем строку введенных нетерминалов грамматики
         const nonTerminalStr = document.getElementById('nonterm').value;
         // получаем строку введенных терминалов грамматики
@@ -48,11 +45,99 @@
         // получаем строку введенного начального символа грамматики
         const start = document.getElementById('start').value;
 
-        // подготавливаем структуру данных для конечного автомата
-        const NKA = {
+        const nonTerminalArray = nonTerminalStr.split(",");
+
+        const grammar = [];
+        ruleStr.split(";")
+            .map(rule => rule.split("->"))
+            .forEach(rule => {
+                grammar.push({
+                    "from": rule[0],
+                    "to": rule[1].split("|")
+                });
+            });
+
+        //console.log(grammar);
+
+        // remove nedost symbols
+        const grammar1 = grammar.filter(elem => {
+            const nonTerm = elem.from;
+            let found = false;
+            if(nonTerm === start) {
+                found = true;
+            } else {
+                grammar.filter(x => x.from !== nonTerm).forEach(x => {
+                    if(x.to.some(z => z.includes(nonTerm))) {
+                        found = true;
+                    }
+                });
+            }
+            return found;
+        });
+
+        //console.log(grammar1);
+
+        // remove ε rule
+        //const grammar2 =
+        const epsilon = "ε";
+        //const epsilonRule = grammar1.find(x => x.to.some(z => z.includes(epsilon))).forEach(x => x.to.pop());
+        grammar1.filter(x => x.to.some(z => z.includes(epsilon))).forEach(x => x.to.pop());
+        //console.log(epsilonRule);
+        //grammar1.filter(x => x.from === start).forEach(x => x.to.push(epsilon));
+
+        // находим следующий символ для обозначения состояний
+        const sorted = nonTerminalArray.sort((a, b) => a.localeCompare(b));
+        let newLetter = String.fromCharCode(sorted[0].charCodeAt(0) - 1);
+        grammar1.push({
+            "from": newLetter,
+            "to": [start, epsilon]
+        });
+
+
+        //console.log(grammar1);
+
+        // remove left fact rules
+        const newGrammarLeft = [];
+        grammar1.forEach(gram => {
+            let newTo = [];
+            gram.to.forEach(term => {
+                const last = term[term.length - 1];
+                if(term.length > 1 && last === last.toLowerCase() && last !== epsilon) {
+                    newLetter = String.fromCharCode(newLetter.charCodeAt(0) - 1);
+                    newGrammarLeft.push({"from": newLetter, "to": [last]});
+                    newTo = newTo.concat(term.substring(0, term.length - 1) + newLetter);
+                } else {
+                    newTo = newTo.concat(term);
+                }
+            });
+            gram.to = newTo;
+        });
+        newGrammarLeft.forEach(x => grammar1.push(x));
+        //console.log(grammar1);
+
+        // remove chain rules
+        grammar1.forEach(gram => {
+            let newTo = [];
+            gram.to.forEach(term => {
+                if(term !== start && term.length === 1 && term === term.toUpperCase()) {
+                    const found = grammar1.find(x => x.from === term);
+                    newTo = newTo.concat(found.to);
+                } else {
+                    newTo = newTo.concat(term);
+                }
+            });
+            gram.to = newTo;
+        });
+
+        console.log(grammar1);
+
+        const KA = {
             "states": [{
                 "name": "start",
                 "type": "initial"
+            }, {
+                "name": "final",
+                "type": "final"
             }],
             "transitions": [{
                 "from": "start",
@@ -60,141 +145,43 @@
             }]
         };
 
-        // создаем структуру данных для детерминированного конечного автомата
-        const minKA_1 = JSON.parse(JSON.stringify(NKA));
-        const minKA_2 = JSON.parse(JSON.stringify(NKA));
-
-        // заполняем структуру данных для НКА состояниями из нетерминалов
-        const nonTerminalArray = nonTerminalStr.split(",")
-        nonTerminalArray.forEach(nonTerminal => NKA.states.push({
-            "name": nonTerminal.trim(),
-            "type": "regular"
-        }))
-
-        // добавляем правила грамматики в структуру переходов между состояниями
-        ruleStr.split(";")
-            .map(rule => rule.split("->"))
-            .forEach(rule => {
-                rule[1].split("|").forEach(ruleItem => {
-                    if (ruleItem.length < 2) {
-                        NKA.transitions.push({
-                            "from": rule[0],
+        grammar1.forEach(gram => {
+            KA.states.push({
+                "name": gram.from,
+                "type": "regular"
+            });
+            gram.to.forEach(rule => {
+                if(rule.length === 1) {
+                    if(rule === rule.toLowerCase()) {
+                        KA.transitions.push({
+                            "from": gram.from,
                             "to": "final",
-                            "label": ruleItem
+                            "label": rule
                         });
                     } else {
-                        NKA.transitions.push({
-                            "from": rule[0],
-                            "to": ruleItem.charAt(1),
-                            "label": ruleItem.charAt(0)
+                        KA.transitions.push({
+                            "from": gram.from,
+                            "to": rule
                         });
                     }
-                })
-            })
-
-        // console.log(NKA)
-        // console.log(JSON.stringify(NKA))
-
-        const dostState = []
-        NKA.transitions.forEach(trans => {
-            if (!dostState.includes(trans.to)) {
-                dostState.push(trans.to)
-            }
-        })
-
-        NKA.states.forEach(state => {
-            if (dostState.includes(state.name)) {
-                minKA_1.states.push(state)
-            }
-        })
-
-        NKA.transitions.forEach(trans => {
-            if (trans.from !== "start" && dostState.includes(trans.from)) {
-                minKA_1.transitions.push(trans)
-            }
-        })
-
-        const sorted = nonTerminalArray.sort((a, b) => a.localeCompare(b));
-        let lastLetter = String.fromCharCode(sorted[sorted.length - 1].charCodeAt(0) + 1);
-        const newNonTerms = [];
-
-        const groupedByFrom = groupBy(minKA_1.transitions, "to");
-        const groupedByFromValues = Object.values(groupedByFrom).filter(x => x.length > 1);
-        groupedByFromValues.forEach(grp => {
-            const groupedByLabel = groupBy(grp, "label");
-            const groupedByLabelValues = Object.values(groupedByLabel).filter(x => x.length > 1);
-            const allFrom = groupedByLabelValues[0].map(x => x.from);
-            newNonTerms.push({
-                "from": allFrom,
-                "newFrom": lastLetter,
-                "to": groupedByLabelValues[0][0].to,
-                "label": groupedByLabelValues[0][0].label
-            });
-            lastLetter = String.fromCharCode(lastLetter.charCodeAt(0) + 1);
-        });
-
-        const newTransitions = [];
-        const newStates = minKA_1.states.filter(x => x.name === start);
-
-        newNonTerms.forEach(x => {
-            newStates.push({
-                "name": x.newFrom,
-                "type": "regular"
-            });
-            newStates.push({
-                "name": x.to,
-                "type": "regular"
-            });
-        });
-
-        newNonTerms.forEach(x => {
-            newTransitions.push({
-                "from": x.newFrom,
-                "to": x.to,
-                "label": x.label
-            });
-        })
-
-        const updated = minKA_1.transitions.map(trans => {
-            newNonTerms.forEach(newNonTerm => {
-                if (newNonTerm.from.includes(trans.to)) {
-                    trans.to = newNonTerm.newFrom
-                }
-            })
-            return trans;
-        });
-
-        updated.forEach(x => {
-            let notFound = true;
-            newNonTerms.forEach(newNonTerm => {
-                if (newNonTerm.from.includes(x.from)) {
-                    const existing = newTransitions.filter(newTr => newTr.from === newNonTerm.newFrom && newTr.to === x.to)
-                    if (existing.length === 0) {
-                        newTransitions.push({
-                            "from": newNonTerm.newFrom,
-                            "to": x.to,
-                            "label": x.label
-                        });
-                    }
-                    notFound = false;
-                }
-            })
-            if (notFound) {
-                const existing = newTransitions.filter(newTr => newTr.from === x.from && newTr.to === x.to)
-                if (existing.length > 0) {
-                    existing[0].label = existing[0].label + "," + x.label;
                 } else {
-                    newTransitions.push(x);
+                    if(rule === rule.toUpperCase()) {
+                        for (const c of rule) {
+                            KA.transitions.push({"from": gram.from, "to": c});
+                        }
+                    } else {
+                        KA.transitions.push({
+                            "from": gram.from,
+                            "to": rule[rule.length - 1],
+                            "label": rule.substring(0, rule.length - 1)
+                        });
+                    }
                 }
-            }
-        })
+            })
+        });
 
-        minKA_2.states = minKA_2.states.concat(newStates)
-        minKA_2.transitions = newTransitions
-
-        console.log(newTransitions);
-        console.log(newStates);
-        console.log(JSON.stringify(minKA_2))
+        console.log(KA);
+        console.log(JSON.stringify(KA))
 
         // добавляем отрисовку графа ДКА
         // const sc = document.createElement("script");
@@ -205,7 +192,7 @@
     }
 </script>
 <script type="text/x-smcat-json" data-direction="left-right">
-{"states":[{"name":"start","type":"initial"},{"name":"A","type":"regular"},{"name":"K","type":"regular"},{"name":"C","type":"regular"},{"name":"L","type":"regular"},{"name":"I","type":"regular"}],"transitions":[{"from":"K","to":"C","label":"d"},{"from":"start","to":"A"},{"from":"A","to":"C","label":"c"},{"from":"C","to":"L","label":"a,c,b"},{"from":"L","to":"K","label":"~"},{"from":"L","to":"C","label":"&amp;"},{"from":"L","to":"I","label":"⊥"}]}
+{"states":[{"name":"start","type":"initial"},{"name":"final","type":"final"},{"name":"S","type":"regular"},{"name":"R","type":"regular"},{"name":"T","type":"regular"},{"name":"X","type":"regular"},{"name":"Q","type":"regular"},{"name":"P","type":"regular"},{"name":"O","type":"regular"}],"transitions":[{"from":"start","to":"S"},{"from":"S","to":"X","label":"p"},{"from":"S","to":"R","label":"pa"},{"from":"S","to":"T","label":"pa"},{"from":"S","to":"T"},{"from":"S","to":"P"},{"from":"S","to":"final","label":"g"},{"from":"R","to":"X","label":"p"},{"from":"R","to":"R","label":"pa"},{"from":"R","to":"T","label":"pa"},{"from":"T","to":"T"},{"from":"T","to":"P"},{"from":"T","to":"final","label":"g"},{"from":"X","to":"O","label":"aX"},{"from":"Q","to":"S"},{"from":"Q","to":"final","label":"ε"},{"from":"P","to":"final","label":"g"},{"from":"O","to":"final","label":"b"}]}
 </script>
 </body>
 </html>
