@@ -22,31 +22,18 @@
 <label>Начальный символ =</label>
 <input type="text" value="S" id="start" size="20">
 <br>
-<button type="button" onclick="minimize()">Преобразовать</button>
+<button type="button" onclick="process()">Преобразовать</button>
 <br>
 <script type="text/javascript">
-    function groupBy(arr, criteria) {
-        return arr.reduce(function (acc, currentValue) {
-            if (!acc[currentValue[criteria]]) {
-                acc[currentValue[criteria]] = [];
-            }
-            acc[currentValue[criteria]].push(currentValue);
-            return acc;
-        }, {});
-    }
-
-    function minimize() {
+    function process() {
         // получаем строку введенных нетерминалов грамматики
         const nonTerminalStr = document.getElementById('nonterm').value;
-        // получаем строку введенных терминалов грамматики
-        const terminalStr = document.getElementById('term').value;
         // получаем строку введенных правил грамматики
         const ruleStr = document.getElementById('rules').value;
         // получаем строку введенного начального символа грамматики
         const start = document.getElementById('start').value;
 
-        const nonTerminalArray = nonTerminalStr.split(",");
-
+        // инициализируем структуру для грамматики
         const grammar = [];
         ruleStr.split(";")
             .map(rule => rule.split("->"))
@@ -57,10 +44,8 @@
                 });
             });
 
-        //console.log(grammar);
-
-        // remove nedost symbols
-        const grammar1 = grammar.filter(elem => {
+        // устраняем недостижимые символов
+        const processedGrammar = grammar.filter(elem => {
             const nonTerm = elem.from;
             let found = false;
             if(nonTerm === start) {
@@ -75,34 +60,23 @@
             return found;
         });
 
-        //console.log(grammar1);
-
-        // remove ε rule
-        //const grammar2 =
-        const epsilon = "ε";
-        //const epsilonRule = grammar1.find(x => x.to.some(z => z.includes(epsilon))).forEach(x => x.to.pop());
-        grammar1.filter(x => x.to.some(z => z.includes(epsilon))).forEach(x => x.to.pop());
-        //console.log(epsilonRule);
-        //grammar1.filter(x => x.from === start).forEach(x => x.to.push(epsilon));
-
-        // находим следующий символ для обозначения состояний
-        const sorted = nonTerminalArray.sort((a, b) => a.localeCompare(b));
+        // устранения ε-правил
+        const eps = "ε";
+        processedGrammar.filter(x => x.to.some(z => z.includes(eps))).forEach(x => x.to.pop());
+        const sorted = nonTerminalStr.split(",").sort((a, b) => a.localeCompare(b));
         let newLetter = String.fromCharCode(sorted[0].charCodeAt(0) - 1);
-        grammar1.push({
+        processedGrammar.push({
             "from": newLetter,
-            "to": [start, epsilon]
+            "to": [start, eps]
         });
 
-
-        //console.log(grammar1);
-
-        // remove left fact rules
+        // устранение левой факторизации правил
         const newGrammarLeft = [];
-        grammar1.forEach(gram => {
+        processedGrammar.forEach(gram => {
             let newTo = [];
             gram.to.forEach(term => {
                 const last = term[term.length - 1];
-                if(term.length > 1 && last === last.toLowerCase() && last !== epsilon) {
+                if(term.length > 1 && last === last.toLowerCase() && last !== eps) {
                     newLetter = String.fromCharCode(newLetter.charCodeAt(0) - 1);
                     newGrammarLeft.push({"from": newLetter, "to": [last]});
                     newTo = newTo.concat(term.substring(0, term.length - 1) + newLetter);
@@ -112,15 +86,14 @@
             });
             gram.to = newTo;
         });
-        newGrammarLeft.forEach(x => grammar1.push(x));
-        //console.log(grammar1);
+        newGrammarLeft.forEach(x => processedGrammar.push(x));
 
-        // remove chain rules
-        grammar1.forEach(gram => {
+        // устранение цепных правил
+        processedGrammar.forEach(gram => {
             let newTo = [];
             gram.to.forEach(term => {
                 if(term !== start && term.length === 1 && term === term.toUpperCase()) {
-                    const found = grammar1.find(x => x.from === term);
+                    const found = processedGrammar.find(x => x.from === term);
                     newTo = newTo.concat(found.to);
                 } else {
                     newTo = newTo.concat(term);
@@ -129,8 +102,7 @@
             gram.to = newTo;
         });
 
-        console.log(grammar1);
-
+        // структура данных для конечного автомата
         const KA = {
             "states": [{
                 "name": "start",
@@ -145,7 +117,8 @@
             }]
         };
 
-        grammar1.forEach(gram => {
+        // заполнение структуры для отображения
+        processedGrammar.forEach(gram => {
             KA.states.push({
                 "name": gram.from,
                 "type": "regular"
@@ -180,19 +153,16 @@
             })
         });
 
-        console.log(KA);
-        console.log(JSON.stringify(KA))
-
         // добавляем отрисовку графа ДКА
-        // const sc = document.createElement("script");
-        // const txt = document.createTextNode(JSON.stringify(DKA));
-        // sc.setAttribute("type", "text/x-smcat-json");
-        // sc.appendChild(txt);
-        // document.body.appendChild(sc);
+        const sc = document.createElement("script");
+        const txt = document.createTextNode(JSON.stringify(KA));
+        sc.setAttribute("type", "text/x-smcat-json");
+        sc.appendChild(txt);
+        document.body.appendChild(sc);
     }
 </script>
 <script type="text/x-smcat-json" data-direction="left-right">
-{"states":[{"name":"start","type":"initial"},{"name":"final","type":"final"},{"name":"S","type":"regular"},{"name":"R","type":"regular"},{"name":"T","type":"regular"},{"name":"X","type":"regular"},{"name":"Q","type":"regular"},{"name":"P","type":"regular"},{"name":"O","type":"regular"}],"transitions":[{"from":"start","to":"S"},{"from":"S","to":"X","label":"p"},{"from":"S","to":"R","label":"pa"},{"from":"S","to":"T","label":"pa"},{"from":"S","to":"T"},{"from":"S","to":"P"},{"from":"S","to":"final","label":"g"},{"from":"R","to":"X","label":"p"},{"from":"R","to":"R","label":"pa"},{"from":"R","to":"T","label":"pa"},{"from":"T","to":"T"},{"from":"T","to":"P"},{"from":"T","to":"final","label":"g"},{"from":"X","to":"O","label":"aX"},{"from":"Q","to":"S"},{"from":"Q","to":"final","label":"ε"},{"from":"P","to":"final","label":"g"},{"from":"O","to":"final","label":"b"}]}
+{"states":[{"name":"start","type":"initial"},{"name":"final","type":"final"},{"name":"S","type":"regular"},{"name":"R","type":"regular"},{"name":"T","type":"regular"},{"name":"X","type":"regular"},{"name":"Q","type":"regular"},{"name":"P","type":"regular"},{"name":"O","type":"regular"}],"transitions":[{"from":"start","to":"S"},{"from":"S","to":"X","label":"p"},{"from":"S","to":"R","label":"pa"},{"from":"S","to":"T","label":"pa"},{"from":"S","to":"T"},{"from":"S","to":"P"},{"from":"S","to":"final","label":"g"},{"from":"R","to":"X","label":"p"},{"from":"R","to":"R","label":"pa"},{"from":"R","to":"T","label":"pa"},{"from":"T","to":"T"},{"from":"T","to":"P"},{"from":"T","to":"final","label":"g"},{"from":"X","to":"X","label":"a"},{"from":"X","to":"O"},{"from":"Q","to":"S"},{"from":"Q","to":"final","label":"ε"},{"from":"P","to":"final","label":"g"},{"from":"O","to":"final","label":"b"}]}
 </script>
 </body>
 </html>
